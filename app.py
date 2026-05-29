@@ -32,7 +32,7 @@ category_mapping = {
 }
 
 tfidf = pickle.load(open("tfidf.pkl", "rb"))
-model = pickle.load(open("knc.pkl", "rb"))  # change if your model file is different
+model = pickle.load(open("knc.pkl", "rb"))
 
 def clean_resume(text):
     text = re.sub(r"http\S+", " ", text)
@@ -43,24 +43,43 @@ def clean_resume(text):
 def extract_text_from_pdf(uploaded_file):
     reader = PdfReader(uploaded_file)
     text = ""
+
     for page in reader.pages:
-        text += page.extract_text() or ""
+        page_text = page.extract_text()
+        if page_text:
+            text += page_text + " "
+
     return text
 
-st.title("Resume Screening App")
-st.write("Upload your resume PDF and get predicted job category.")
+st.set_page_config(
+    page_title="Resume Screening App",
+    page_icon="📄",
+    layout="centered"
+)
+
+st.title("AI Resume Screening System")
+st.write("Upload your resume PDF and get the predicted job category.")
 
 uploaded_file = st.file_uploader("Upload Resume PDF", type=["pdf"])
 
 if uploaded_file is not None:
     resume_text = extract_text_from_pdf(uploaded_file)
 
-    if st.button("Predict"):
-        cleaned = clean_resume(resume_text)
-        vectorized = tfidf.transform([cleaned])
-        prediction = model.predict(vectorized)
+    st.subheader("Extracted Resume Preview")
+    st.write(resume_text[:1000])
 
-        predicted_number = int(prediction[0])
-        predicted_category = category_mapping[predicted_number]
+    if st.button("Predict Category"):
+        if resume_text.strip() == "":
+            st.error("Could not extract text from this PDF.")
+        else:
+            cleaned_resume = clean_resume(resume_text)
+            vectorized_resume = tfidf.transform([cleaned_resume])
 
-        st.success(f"Predicted Category: {predicted_category}")
+            prediction = model.predict(vectorized_resume)
+            predicted_number = int(prediction[0])
+            predicted_category = category_mapping.get(
+                predicted_number,
+                "Unknown Category"
+            )
+
+            st.success(f"Predicted Category: {predicted_category}")
