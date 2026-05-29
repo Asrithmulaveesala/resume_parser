@@ -2,6 +2,8 @@ import streamlit as st
 import pickle
 import re
 from pypdf import PdfReader
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 category_mapping = {
     0: "Advocate",
@@ -50,6 +52,17 @@ def extract_text_from_pdf(uploaded_file):
             text += page_text + " "
 
     return text
+def calculate_ats_score(resume_text, job_description):
+    documents = [resume_text, job_description]
+
+    tfidf = TfidfVectorizer(stop_words="english")
+    tfidf_matrix = tfidf.fit_transform(documents)
+
+    similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
+    raw_score = similarity[0][0]
+    score = (raw_score * 70) + 30
+    score = round(min(score, 100), 2)
+    return score
 
 st.set_page_config(
     page_title="Resume Screening App",
@@ -61,14 +74,16 @@ st.title("AI Resume Screening System")
 st.write("Upload your resume PDF and get the predicted job category.")
 
 uploaded_file = st.file_uploader("Upload Resume PDF", type=["pdf"])
+job_description = st.text_area(
+    "Paste Job Description",
+    placeholder="Paste the job description here..."
+)
 
 if uploaded_file is not None:
+
     resume_text = extract_text_from_pdf(uploaded_file)
 
-    st.subheader("Extracted Resume Preview")
-    st.write(resume_text[:1000])
-
-    if st.button("Predict Category"):
+    if st.button("Analyze Resume"):
         if resume_text.strip() == "":
             st.error("Could not extract text from this PDF.")
         else:
@@ -77,9 +92,18 @@ if uploaded_file is not None:
 
             prediction = model.predict(vectorized_resume)
             predicted_number = int(prediction[0])
+
             predicted_category = category_mapping.get(
                 predicted_number,
                 "Unknown Category"
             )
 
             st.success(f"Predicted Category: {predicted_category}")
+
+            if job_description.strip():
+                ats_score = calculate_ats_score(resume_text, job_description)
+
+                st.subheader("ATS Score Analysis")
+                st.metric("ATS Score", f"{ats_score}%")
+            else:
+                st.warning("Paste job description to calculate ATS score.")
